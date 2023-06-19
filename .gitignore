@@ -1,2 +1,34 @@
-.idea/
-__pycache__/
+# alphabetically ordered
+*.egg-info
+*.ipynb
+*.pyc
+*.xml
+.coverage*
+.DS_Store
+.hypothesis
+.idea
+.ipynb_checkpoints
+dist
+env
+pip-wheel-metadata
+py2-env
+.vscode
+
+#folders I don't want to track
+PDFs/
+plots/
+slides/
+devel/
+old/
+data/
+tmp/
+
+#latex output
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.toc
+*.gz
+
