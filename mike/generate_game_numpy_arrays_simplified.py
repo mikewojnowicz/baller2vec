@@ -526,7 +526,7 @@ HALF_COURT_LENGTH = COURT_LENGTH // 2
 THRESHOLD = 1.0
 
 ### Configs (my added configs for simple version)
-N_GAMES = 2
+N_GAMES = 3
 
 ### Preliminiaries
 os.makedirs(GAMES_DIR, exist_ok=True)
@@ -572,25 +572,30 @@ sample_games_7zs = all_game_7zs[:N_GAMES]
 #       'defensive_foul': 3,
 #       'shot_miss': 4,
 
-try:
-    baller2vec_config = pickle.load(
-        open(f"{DATA_DIR}/baller2vec_config.pydict", "rb")
-    )
-    player_idx2props = baller2vec_config["player_idx2props"]
-    event2event_idx = baller2vec_config["event2event_idx"]
-    playerid2player_idx = {}
-    for (player_idx, props) in player_idx2props.items():
-        playerid2player_idx[props["playerid"]] = player_idx
+# MTW: I always rewrite the config because it don't currently see how it would
+# take substantial additional time to do so, and that way the dicts will
+# track changes in number of processed data samples. 
+#
+# try:
+#     baller2vec_config = pickle.load(
+#         open(f"{DATA_DIR}/baller2vec_config.pydict", "rb")
+#     )
+#     player_idx2props = baller2vec_config["player_idx2props"]
+#     event2event_idx = baller2vec_config["event2event_idx"]
+#     playerid2player_idx = {}
+#     for (player_idx, props) in player_idx2props.items():
+#         playerid2player_idx[props["playerid"]] = player_idx
 
-except FileNotFoundError:
-    baller2vec_config = False
+# except FileNotFoundError:
+baller2vec_config = False
 
 shot_times = get_shot_times(sample_games_7zs)
+# TODO: Why is get_team_hoop_sides so much slower than get_shot_times and get_event_streams? Can I speed it up?
 hoop_sides = get_team_hoop_sides(sample_games_7zs, shot_times)
 (event2event_idx, gameid2event_stream) = get_event_streams(sample_games_7zs)
 
-if baller2vec_config:
-    event2event_idx = baller2vec_config["event2event_idx"]
+# if baller2vec_config:
+#     event2event_idx = baller2vec_config["event2event_idx"]
 
 save_numpy_arrays(sample_games_7zs, gameid2event_stream)
 
@@ -599,12 +604,11 @@ player_idx2playing_time = get_player_idx2playing_time_map()
 for (player_idx, playing_time) in player_idx2playing_time.items():
     player_idx2props[player_idx]["playing_time"] = playing_time
 
-if not baller2vec_config:
-    baller2vec_config = {
-        "player_idx2props": player_idx2props,
-        "event2event_idx": event2event_idx,
-    }
-    pickle.dump(
-        baller2vec_config, open(f"{DATA_DIR}/baller2vec_config.pydict", "wb")
-    )
-    
+# if not baller2vec_config:
+baller2vec_config = {
+    "player_idx2props": player_idx2props,
+    "event2event_idx": event2event_idx,
+}
+pickle.dump(
+    baller2vec_config, open(f"{DATA_DIR}/baller2vec_config.pydict", "wb")
+)
