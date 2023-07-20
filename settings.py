@@ -1,4 +1,3 @@
-import os
 
 NORMALIZATION_COEF = 7
 PLAYER_CIRCLE_SIZE = 12 / NORMALIZATION_COEF
@@ -47,8 +46,21 @@ TEAM_ID2PROPS = {
     1610612762: {"color": "#00471B", "abbreviation": "UTA"},
     1610612764: {"color": "#002B5C", "abbreviation": "WAS"},
 }
-EVENTS_DIR = os.environ["EVENTS_DIR"]
-TRACKING_DIR = os.environ["TRACKING_DIR"]
-GAMES_DIR = os.environ["GAMES_DIR"]
-DATA_DIR = os.environ["DATA_DIR"]
-EXPERIMENTS_DIR = os.environ["EXPERIMENTS_DIR"]
+
+# MTW: The section below is how Michael Alcorn had things set up;
+# Instead of reading paths in from the os environment after exporting,
+# We just hardcode them here in the settings
+# 
+#
+# import os
+# EVENTS_DIR = os.environ["EVENTS_DIR"]
+# TRACKING_DIR = os.environ["TRACKING_DIR"]
+# GAMES_DIR = os.environ["GAMES_DIR"]
+# DATA_DIR = os.environ["DATA_DIR"]
+# EXPERIMENTS_DIR = os.environ["EXPERIMENTS_DIR"]
+
+DATA_DIR="/Users/mwojno01/Repos/baller2vec_forked/data/"
+EVENTS_DIR=f"{DATA_DIR}/events"
+TRACKING_DIR=f"{DATA_DIR}/NBA-Player-Movements/data/2016.NBA.Raw.SportVU.Game.Logs"
+GAMES_DIR=f"{DATA_DIR}/games"
+EXPERIMENTS_DIR=f"{DATA_DIR}/experiments"
