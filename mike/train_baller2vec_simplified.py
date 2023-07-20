@@ -67,7 +67,27 @@ def get_train_valid_test_gameids(opts) -> Tuple[List[str], List[str], List[str]]
     return (train_gameids, valid_gameids, test_gameids)
 
 
-def init_datasets(opts):
+def init_datasets(opts) -> Tuple:
+    """
+    Returns:
+        The object returned is a Tuple, whose names are given below.
+
+            train_dataset,
+            train_loader,
+            valid_dataset,
+            valid_loader,
+            test_dataset,
+            test_loader
+
+        Each *_loader is an Iterable (e.g., we can do `for tensors in valid_loader`) of dictionaries
+            whose keys are given below:
+        
+            dict_keys(['player_idxs', 'player_xs', 'player_ys', 'player_hoop_sides', 'ball_xs', 'ball_ys', 
+            'ball_zs', 'game_contexts', 'events', 'player_trajs', 'ball_trajs', 'score_changes', 'ball_locs'])
+
+            and whose values, on a quick check, are tensors giving information across a minibatch of timesteps.        
+
+    """
     baller2vec_config = pickle.load(open(f"{DATA_DIR}/baller2vec_config.pydict", "rb"))
     n_player_ids = len(baller2vec_config["player_idx2props"])
     filtered_player_idxs = set()
@@ -232,7 +252,12 @@ def get_preds_labels(tensors: Dict[str, torch.Tensor]):
 
 
 
-def train_model(n_epochs):
+def train_model(
+    n_epochs, 
+    train_loader,
+    valid_loader,
+    test_loader,
+):
     """
     n_epochs was hardcoded to 650 in the Alcorn code.
     """
@@ -273,6 +298,7 @@ def train_model(n_epochs):
         with torch.no_grad():
             n_valid = 0
             for valid_tensors in valid_loader:
+                breakpoint()
                 # Skip bad sequences.
                 if len(valid_tensors["player_idxs"]) < model.seq_len:
                     continue
@@ -373,6 +399,7 @@ def train_model(n_epochs):
 ### CONFIGS
 SEED = 2010
 JOB = "tiny" # TODO: In Alcorn code, JOB=$(date +%Y%m%d%H%M%S)
+N_EPOCHS = 650
 
 ### CODE 
 torch.manual_seed(SEED)
@@ -414,6 +441,11 @@ n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 print(f"Parameters: {n_params}")
 
 ### Train model.
-train_model()
+train_model(
+    N_EPOCHS,  
+    train_loader,
+    valid_loader,
+    test_loader,
+)
 
 

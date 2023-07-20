@@ -333,6 +333,7 @@ def train_model():
 
 
 if __name__ == "__main__":
+    # MTW: Need to first do source ~/.basketball_profile.
     JOB = sys.argv[1]
     JOB_DIR = f"{EXPERIMENTS_DIR}/{JOB}"
 

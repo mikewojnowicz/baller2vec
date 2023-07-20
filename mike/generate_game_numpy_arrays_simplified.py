@@ -223,6 +223,32 @@ def get_team_hoop_sides(
 ### Event streams 
 
 from generate_game_numpy_arrays import get_event_stream
+from typing import Optional 
+
+def _gameid_from_game7z_basename(game_7z_basename: str) -> Optional[str]:
+    """
+
+    Argument:
+        game_7z_basename: Example '12.17.2015.TOR.at.CHA.7z' or '12.17.2015.TOR.at.CHA'
+    
+    Returns:
+        Example: 0021500492.json
+    
+    Note:
+        The relationship can be determined by inspecting the harddrive, because 
+        there are paths of the form
+            data/NBA-Player-Movements/<game_7z_basename>/<gameid>.json
+        with a single .json per <game_7z_basename>
+    """
+    # Left strip everything up to the phrase
+    game_7z_rstripped=game_7z_basename.rstrip(".7z")
+
+    try:
+        gameid = os.listdir(f"{TRACKING_DIR}/{game_7z_rstripped}")[0].split(".")[0]
+    except:
+        gameid = None 
+    
+    return gameid 
 
 def get_event_streams(game_7z_filenames: List[str]) -> Tuple[Dict,Dict]:
     """
@@ -278,15 +304,9 @@ def get_event_streams(game_7z_filenames: List[str]) -> Tuple[Dict,Dict]:
     gameid2event_stream = {}
 
     for game_7z in game_7z_filenames:
-
-        # Left strip everything up to the phrase
-        game_7z_rstripped=game_7z.rstrip(".7z")
-
-        try:
-            gameid = os.listdir(f"{TRACKING_DIR}/{game_7z_rstripped}")[0].split(".")[0]
+        gameid = _gameid_from_game7z_basename(game_7z) 
+        if gameid is not None:
             gameid2event_stream[gameid] = get_event_stream(gameid)
-        except IndexError:
-            continue
 
     event2event_idx = {}
     for event_stream in gameid2event_stream.values():
@@ -315,8 +335,8 @@ def save_game_numpy_arrays(game_name, gameid2event_stream):
 
     The X file is an np.array of shape (T,D), where D is the dimensionality of "information" about
         each of the T plays.   In particular, we have D=54, and
-            0 = game_time,
-            1 = period_time,
+            0 = elapsed game_time (secs),
+            1 = elapsed period_time (secs),
             2 = shot_clock,
             3 = period,
             4 = left_score,  The score of the team whose hoop is on the left.
@@ -333,7 +353,7 @@ def save_game_numpy_arrays(game_name, gameid2event_stream):
             51 = wall_clock
     """
     try:
-        gameid = os.listdir(f"{TRACKING_DIR}/{game_name}")[0].split(".")[0]
+        gameid = _gameid_from_game7z_basename(game_name)
     except IndexError:
         shutil.rmtree(f"{TRACKING_DIR}/{game_name}")
         return
@@ -482,7 +502,7 @@ def save_numpy_arrays(game_7z_filenames: List[str], gameid2event_stream):
             pass
 
         # TODO: Should this be uncommented, as in the original code by Alcorn? If so, why?
-        # shutil.rmtree(f"{TRACKING_DIR}/{game_name}")
+        shutil.rmtree(f"{TRACKING_DIR}/{game_name}")
 
 ### Playing Time
 def get_player_idx2playing_time_map() -> Dict[int, float]:
@@ -543,7 +563,9 @@ os.makedirs(GAMES_DIR, exist_ok=True)
 dir_fs = os.listdir(TRACKING_DIR)
 all_game_7zs = [dir_f for dir_f in dir_fs if dir_f.endswith(".7z")]
 
-sample_games_7zs = all_game_7zs[:N_GAMES]
+#sample_games_7zs = all_game_7zs[:N_GAMES]
+sample_games_7zs=[x for x in all_game_7zs if "TOR" in x and "CHA" in x]
+#sample_games_7zs=[x for x in all_game_7zs if "TOR" in x]
 
 # TODO: Split this into two functions, one that unzips all the files first, and then 
 # one that gets the player indices
