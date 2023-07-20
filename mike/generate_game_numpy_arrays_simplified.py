@@ -320,7 +320,7 @@ def get_event_streams(game_7z_filenames: List[str]) -> Tuple[Dict,Dict]:
 
 from generate_game_numpy_arrays import add_score_changes
 
-def save_game_numpy_arrays(game_name, gameid2event_stream):
+def save_game_numpy_arrays(game_name : str, event_stream_for_one_game : List[Dict]) -> None:
     """
     Creates two files, {gameid}_X.npy and {gameid}_y.npy
 
@@ -351,6 +351,11 @@ def save_game_numpy_arrays(game_name, gameid2event_stream):
             40-49 = the player hoop sides, players ordered as above (0=left, 1=right)
             50 = event_id 
             51 = wall_clock
+    
+    Arguments:
+        event_stream_for_one_game: A List of Dicts. There is one element for each event,
+            containining metadata about that event, e.g. the score, and the annotation
+            for that event.
     """
     try:
         gameid = _gameid_from_game7z_basename(game_name)
@@ -369,7 +374,6 @@ def save_game_numpy_arrays(game_name, gameid2event_stream):
     game_over = False
     X = []
     y = []
-    event_stream = gameid2event_stream[gameid]
     for tracking_event in df_tracking["events"]:
         event_id = tracking_event["eventId"]
         if home_team is None:
@@ -393,16 +397,16 @@ def save_game_numpy_arrays(game_name, gameid2event_stream):
             if game_time <= cur_time:
                 continue
 
-            while game_time > event_stream[event_idx]["game_time"]:
+            while game_time > event_stream_for_one_game[event_idx]["game_time"]:
                 event_idx += 1
-                if event_idx >= len(event_stream):
+                if event_idx >= len(event_stream_for_one_game):
                     game_over = True
                     break
 
             if game_over:
                 break
 
-            event = event_stream[event_idx]
+            event = event_stream_for_one_game[event_idx]
             score = event["score"]
             (away_score, home_score) = (int(s) for s in score.split(" - "))
             home_hoop_side = hoop_sides[gameid][period][home_team]
@@ -497,7 +501,9 @@ def save_numpy_arrays(game_7z_filenames: List[str], gameid2event_stream):
         # df_tracking = pd.read_json(f"{TRACKING_DIR}/{game_name}/{gameid}.json")
 
         try:
-            save_game_numpy_arrays(game_name, gameid2event_stream)
+            gameid = _gameid_from_game7z_basename(game_name)
+            event_stream_for_one_game = gameid2event_stream[gameid]
+            save_game_numpy_arrays(game_name, event_stream_for_one_game)
         except ValueError:
             pass
 
