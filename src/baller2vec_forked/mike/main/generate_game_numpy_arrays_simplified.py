@@ -1,8 +1,7 @@
 
-import pickle
 import os 
 
-from settings import GAMES_DIR, TRACKING_DIR, DATA_DIR
+from baller2vec_forked.settings import GAMES_DIR, TRACKING_DIR
 
 from baller2vec_forked.mike.make_data import (
     get_playerid2player_idx_map,
@@ -10,7 +9,7 @@ from baller2vec_forked.mike.make_data import (
     get_team_hoop_sides,
     get_event_streams, 
     save_numpy_arrays, 
-    get_player_idx2playing_time_map,
+    save_baller2vec_config,
 )
 
 
@@ -56,59 +55,11 @@ sample_games_7zs=['01.01.2016.CHA.at.TOR.7z']
 # throughout. Should I fix this?  Probably would be best to just find and remove the prefixes up front.
 (playerid2player_idx, player_idx2props) = get_playerid2player_idx_map(sample_games_7zs)
 
-# A `baller2vec_config' simply has two items.  
-#   - player_idx2props, which maps a player index to {name, playerid, and playing time}:   
-#       Note that some players may not have played.  An example:
-#
-#       7: {'name': 'Miles Plumlee', 'playerid': 203101},
-#       8: {'name': 'Rashad Vaughn',
-#           'playerid': 1626173,
-#            'playing_time': 191.67299999999213},
-#
-#   - event2event_idx, which maps event labels to event indices, e.g.
-#       {'offensive_foul': 0,
-#       'turnover': 1,
-#       'shot_made': 2,
-#       'defensive_foul': 3,
-#       'shot_miss': 4,
-
-# MTW: I always rewrite the config because it don't currently see how it would
-# take substantial additional time to do so, and that way the dicts will
-# track changes in number of processed data samples. 
-#
-# try:
-#     baller2vec_config = pickle.load(
-#         open(f"{DATA_DIR}/baller2vec_config.pydict", "rb")
-#     )
-#     player_idx2props = baller2vec_config["player_idx2props"]
-#     event2event_idx = baller2vec_config["event2event_idx"]
-#     playerid2player_idx = {}
-#     for (player_idx, props) in player_idx2props.items():
-#         playerid2player_idx[props["playerid"]] = player_idx
-
-# except FileNotFoundError:
-baller2vec_config = False
 
 shot_times = get_shot_times(sample_games_7zs)
 # TODO: Why is get_team_hoop_sides so much slower than get_shot_times and get_event_streams? Can I speed it up?
 hoop_sides = get_team_hoop_sides(sample_games_7zs, shot_times)
 (event2event_idx, gameid2event_stream) = get_event_streams(sample_games_7zs)
 
-# if baller2vec_config:
-#     event2event_idx = baller2vec_config["event2event_idx"]
-
 save_numpy_arrays(sample_games_7zs, gameid2event_stream,  hoop_sides, event2event_idx, playerid2player_idx) 
-
-player_idx2playing_time = get_player_idx2playing_time_map()
-
-for (player_idx, playing_time) in player_idx2playing_time.items():
-    player_idx2props[player_idx]["playing_time"] = playing_time
-
-# if not baller2vec_config:
-baller2vec_config = {
-    "player_idx2props": player_idx2props,
-    "event2event_idx": event2event_idx,
-}
-pickle.dump(
-    baller2vec_config, open(f"{DATA_DIR}/baller2vec_config.pydict", "wb")
-)
+save_baller2vec_config(player_idx2props, event2event_idx)

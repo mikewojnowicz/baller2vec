@@ -1,12 +1,15 @@
 from typing import List, Dict, Optional, Tuple 
 import os 
+import pickle 
 import py7zr
 import shutil
 
 import numpy as np
 import pandas as pd
 
-from baller2vec_forked.settings import TRACKING_DIR, EVENTS_DIR, GAMES_DIR, COURT_LENGTH, TEAM_ID2PROPS
+from baller2vec_forked.settings import (
+    TRACKING_DIR, EVENTS_DIR, GAMES_DIR, DATA_DIR, COURT_LENGTH, TEAM_ID2PROPS
+)
 
 from baller2vec_forked.generate_game_numpy_arrays import (
     add_score_changes, 
@@ -486,8 +489,9 @@ def get_event_streams(game_7z_filenames: List[str]) -> Tuple[Dict,Dict]:
 
 
 ###
-# Save Arrays
+# Save to Disk
 ###
+
 def save_game_numpy_arrays(
     game_name : str, 
     event_stream_for_one_game : List[Dict],
@@ -718,3 +722,54 @@ def save_numpy_arrays(
 
         # TODO: Should this be uncommented, as in the original code by Alcorn? If so, why?
         shutil.rmtree(f"{TRACKING_DIR}/{game_name}")
+
+def save_baller2vec_config(player_idx2props, event2event_idx) -> None:
+
+    """
+    A `baller2vec_config' simply has two items.  
+      - player_idx2props, which maps a player index to {name, playerid, and playing time}:   
+          Note that some players may not have played.  An example:
+    
+          7: {'name': 'Miles Plumlee', 'playerid': 203101},
+          8: {'name': 'Rashad Vaughn',
+              'playerid': 1626173,
+               'playing_time': 191.67299999999213},
+    
+      - event2event_idx, which maps event labels to event indices, e.g.
+          {'offensive_foul': 0,
+          'turnover': 1,
+          'shot_made': 2,
+          'defensive_foul': 3,
+          'shot_miss': 4,
+
+    MTW: I always rewrite the config because it don't currently see how it would
+    take substantial additional time to do so, and that way the dicts will
+    track changes in number of processed data samples. 
+    
+    try:
+        baller2vec_config = pickle.load(
+            open(f"{DATA_DIR}/baller2vec_config.pydict", "rb")
+        )
+        player_idx2props = baller2vec_config["player_idx2props"]
+        event2event_idx = baller2vec_config["event2event_idx"]
+        playerid2player_idx = {}
+        for (player_idx, props) in player_idx2props.items():
+            playerid2player_idx[props["playerid"]] = player_idx
+    except FileNotFoundError:
+        baller2vec_config = False
+    """
+
+    player_idx2playing_time = get_player_idx2playing_time_map()
+
+    for (player_idx, playing_time) in player_idx2playing_time.items():
+        player_idx2props[player_idx]["playing_time"] = playing_time
+
+    # if not baller2vec_config:
+    baller2vec_config = {
+        "player_idx2props": player_idx2props,
+        "event2event_idx": event2event_idx,
+    }
+    pickle.dump(
+        baller2vec_config, open(f"{DATA_DIR}/baller2vec_config.pydict", "wb")
+    )
+
