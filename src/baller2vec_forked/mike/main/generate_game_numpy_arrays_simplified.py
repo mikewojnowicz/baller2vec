@@ -1,7 +1,7 @@
 
 import os 
 
-from baller2vec_forked.settings import GAMES_DIR, TRACKING_DIR
+from baller2vec_forked.settings import GAMES_DIR, TRACKING_DIR, INFO_DIR
 
 from baller2vec_forked.mike.make_data import (
     get_playerid2player_idx_map,
@@ -10,7 +10,7 @@ from baller2vec_forked.mike.make_data import (
     get_team_hoop_sides,
     get_event_streams, 
     save_numpy_arrays, 
-    save_baller2vec_config,
+    save_baller2vec_info,
 )
 
 
@@ -64,4 +64,4 @@ hoop_sides = get_team_hoop_sides(sample_games_7zs, shot_times)
 save_numpy_arrays(sample_games_7zs, gameid2event_stream,  hoop_sides, event2event_idx, playerid2player_idx, GAMES_DIR) 
 
 player_idx2playing_time = get_player_idx2playing_time_map(GAMES_DIR)
-save_baller2vec_config(player_idx2props, player_idx2playing_time, event2event_idx)
+save_baller2vec_info(player_idx2props, player_idx2playing_time, event2event_idx, INFO_DIR)

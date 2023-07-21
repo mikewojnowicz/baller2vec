@@ -725,14 +725,15 @@ def save_numpy_arrays(
         # TODO: Should this be uncommented, as in the original code by Alcorn? If so, why?
         shutil.rmtree(f"{TRACKING_DIR}/{game_name}")
 
-def save_baller2vec_config(
-    player_idx2props, 
-    player_idx2playing_time,
-    event2event_idx
+def save_baller2vec_info(
+    player_idx2props: Dict[int, Dict],
+    player_idx2playing_time: Dict[int,float],
+    event2event_idx: Dict,
+    info_dir: str, 
 ) -> None:
 
     """
-    A `baller2vec_config' simply has two items.  
+    A `baller2vec_info' simply has two items.  
       - player_idx2props, which maps a player index to {name, playerid, and playing time}:   
           Note that some players may not have played.  An example:
     
@@ -753,27 +754,26 @@ def save_baller2vec_config(
     track changes in number of processed data samples. 
     
     try:
-        baller2vec_config = pickle.load(
-            open(f"{DATA_DIR}/baller2vec_config.pydict", "rb")
+        baller2vec_info = pickle.load(
+            open(f"{DATA_DIR}/baller2vec_info.pydict", "rb")
         )
-        player_idx2props = baller2vec_config["player_idx2props"]
-        event2event_idx = baller2vec_config["event2event_idx"]
+        player_idx2props = baller2vec_info["player_idx2props"]
+        event2event_idx = baller2vec_info["event2event_idx"]
         playerid2player_idx = {}
         for (player_idx, props) in player_idx2props.items():
             playerid2player_idx[props["playerid"]] = player_idx
     except FileNotFoundError:
-        baller2vec_config = False
+        baller2vec_info = False
     """
 
     for (player_idx, playing_time) in player_idx2playing_time.items():
         player_idx2props[player_idx]["playing_time"] = playing_time
 
-    # if not baller2vec_config:
-    baller2vec_config = {
+    baller2vec_info = {
         "player_idx2props": player_idx2props,
         "event2event_idx": event2event_idx,
     }
     pickle.dump(
-        baller2vec_config, open(f"{DATA_DIR}/baller2vec_config.pydict", "wb")
+        baller2vec_info, open(f"{info_dir}/baller2vec_info.pydict", "wb")
     )
 

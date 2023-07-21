@@ -65,3 +65,4 @@ TRACKING_DIR=f"{DATA_DIR}/NBA-Player-Movements/data/2016.NBA.Raw.SportVU.Game.Lo
 GAMES_DIR=f"{DATA_DIR}/games"
 SINGLE_GAME_SPLITS_DIR=f"{DATA_DIR}/single_game_splits"
 EXPERIMENTS_DIR=f"{DATA_DIR}/experiments"
+INFO_DIR = f"{DATA_DIR}/info"
