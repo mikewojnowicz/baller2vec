@@ -10,7 +10,7 @@ import torch
 import yaml
 
 from PIL import Image, ImageDraw
-from settings import *
+from baller2vec_forked.settings import *
 from sklearn.metrics import pairwise_distances
 from torch import nn
 from train_baller2vec import init_datasets, init_model

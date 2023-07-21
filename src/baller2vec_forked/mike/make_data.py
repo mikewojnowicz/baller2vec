@@ -1,26 +1,29 @@
-from typing import List, Tuple, Dict 
-import numpy as np
-import pandas as pd
-import pickle
+from typing import List, Dict, Optional, Tuple 
+import os 
 import py7zr
 import shutil
-import os 
 
-from settings import *
+import numpy as np
+import pandas as pd
 
-"""
-We run a simple verison of generate_game_numpy_arrays.py from baller2vec,
-so that we can 
+from baller2vec_forked.settings import TRACKING_DIR, EVENTS_DIR, GAMES_DIR, COURT_LENGTH, TEAM_ID2PROPS
 
-1) provide comments on what is happening (what data is grabbed, what processing is done).
-2) control the size of the dataset processed (in particular we can try to apply transformer on a small snippet)
-3) run sequentially rather than in parallel.  (slower OFC but allows interactivity/greater visibility)
-4) and run locally (at least to start. can move to cloud later)
+from baller2vec_forked.generate_game_numpy_arrays import (
+    add_score_changes, 
+    get_event_stream, 
+    get_game_hoop_sides, 
+)
 
-"""
+
+### 
+# Configs
+###
+
+HALF_COURT_LENGTH = COURT_LENGTH // 2
+WALL_CLOCK_DIFF_THRESHOLD = 1.0
 
 ###
-# Helper functions
+# Players 
 ###
 
 def get_playerid2player_idx_map(game_7z_filenames : List[str]) -> Tuple[Dict, Dict]:
@@ -90,7 +93,43 @@ def get_playerid2player_idx_map(game_7z_filenames : List[str]) -> Tuple[Dict, Di
         player_idx2props[player_idx]["playerid"] = playerid
     return  playerid2player_idx, player_idx2props
 
-### Shot times 
+### Playing Time
+def get_player_idx2playing_time_map() -> Dict[int, float]:
+    """
+    Partial example of return value:
+
+        {0: 1683.7159999992375,
+        4: 1730.3049999992004,
+        5: 1622.953999999284,
+        9: 1574.316999999348,
+    """
+    player_idx2playing_time = {}
+
+    gameids = list(set([np_f.split("_")[0] for np_f in os.listdir(GAMES_DIR)]))
+
+    for gameid in gameids:
+        X = np.load(f"{GAMES_DIR}/{gameid}_X.npy")
+        wall_clock_diffs = np.diff(X[:, -1]) / 1000
+        all_player_idxs = X[:, 10:20].astype(int)
+        prev_players = set(all_player_idxs[0])
+        for (row_idx, player_idxs) in enumerate(all_player_idxs[1:]):
+            current_players = set(player_idxs)
+            if len(prev_players & current_players) == 10:
+                wall_clock_diff = wall_clock_diffs[row_idx]
+                if wall_clock_diff < WALL_CLOCK_DIFF_THRESHOLD:
+                    for player_idx in current_players:
+                        player_idx2playing_time[player_idx] = (
+                            player_idx2playing_time.get(player_idx, 0) + wall_clock_diff
+                        )
+
+            prev_players = current_players
+
+    return player_idx2playing_time
+
+
+### 
+# Shot times 
+###
 
 def get_game_time(game_clock_secs, period : int) -> int:
     """
@@ -148,13 +187,14 @@ def get_shot_times(game_7z_filenames : List[str]) -> Dict[int, Dict[int,str]]:
         shot_times[gameid] = game_shot_times
     return shot_times 
 
-### Hoop sides
 
-from generate_game_numpy_arrays import get_game_hoop_sides, check_periods, fill_in_periods
+### 
+# Hoop sides
+###
 
 def get_team_hoop_sides(
-        game_7z_filenames: List[str],
-        shot_times,
+    game_7z_filenames: List[str],
+    shot_times,
 ) -> Dict[int, Dict[int, Dict[str,int]]]:
     """
     Returns a dict mapping gameid to another dict, which maps
@@ -168,8 +208,6 @@ def get_team_hoop_sides(
                         2: {'MIL': 94, 'NYK': 0},
                         3: {'MIL': 0, 'NYK': 94},
                         4: {'MIL': 0, 'NYK': 94}}}
-
-  
     """
     hoop_sides = {}
     for game_7z in game_7z_filenames:
@@ -220,10 +258,141 @@ def get_team_hoop_sides(
         hoop_sides[gameid] = get_game_hoop_sides(teams, hoop_side_counts, game_name)
     return hoop_sides 
 
-### Event streams 
+### 
+# Shot times 
+###
 
-from generate_game_numpy_arrays import get_event_stream
-from typing import Optional 
+def get_game_time(game_clock_secs, period : int) -> int:
+    """
+    Shows the game time in seconds (represented as an integer). 
+    There are 60*12=720 seconds per quarter, and so 2880 seconds per game. 
+    """
+    period_secs = 720 if period <= 4 else 300
+    period_time = period_secs - game_clock_secs
+    if period <= 4:
+        return (period - 1) * 720 + period_time
+    else:
+        return 4 * 720 + (period - 5) * 300 + period_time
+    
+
+def get_shot_times(game_7z_filenames : List[str]) -> Dict[int, Dict[int,str]]:
+    """
+    Constructs dictionary mapping gameid to a dictionary of shot times, represented
+    as game_time (in seconds, from 0 to 2880) -> str of team who took the shot
+
+    Example return value:
+
+     '0021500035': {21: 'NOP',
+            30: 'GSW',
+            53: 'NOP',
+            68: 'GSW',
+            80: 'NOP',
+            86: 'NOP',
+            123: 'NOP',
+            132: 'GSW',
+            138: 'NOP',
+            146: 'GSW',
+            166: 'NOP',
+            173: 'GSW',
+            178: 'NOP',
+    """
+    shot_times = {}
+    for game_7z in game_7z_filenames:
+        game_name = game_7z.split(".7z")[0]
+        try:
+            gameid = os.listdir(f"{TRACKING_DIR}/{game_name}")[0].split(".")[0]
+        except FileNotFoundError:
+            continue
+
+        df_events = pd.read_csv(f"{EVENTS_DIR}/{gameid}.csv")
+        game_shot_times = {}
+        for (row_idx, row) in df_events.iterrows():
+            period = row["PERIOD"]
+            game_clock = row["PCTIMESTRING"].split(":")
+            game_clock_secs = 60 * int(game_clock[0]) + int(game_clock[1])
+            game_time = get_game_time(game_clock_secs, period)
+
+            if (row["EVENTMSGTYPE"] == 1) or (row["EVENTMSGTYPE"] == 2):
+                game_shot_times[game_time] = row["PLAYER1_TEAM_ABBREVIATION"]
+
+        shot_times[gameid] = game_shot_times
+    return shot_times 
+
+
+### 
+# Hoop sides
+###
+
+
+def get_team_hoop_sides(
+    game_7z_filenames: List[str],
+    shot_times,
+) -> Dict[int, Dict[int, Dict[str,int]]]:
+    """
+    Returns a dict mapping gameid to another dict, which maps
+    quarters to an innermost dict, which maps team strings to 
+    the x-coordinate of the basket 
+    (forced to be either 0 or 94; the COURT_LENGTH is defined to be 94
+    in the settings)
+
+    Partial example return value:
+        {'0021500295': {1: {'MIL': 94, 'NYK': 0},
+                        2: {'MIL': 94, 'NYK': 0},
+                        3: {'MIL': 0, 'NYK': 94},
+                        4: {'MIL': 0, 'NYK': 94}}}
+    """
+    hoop_sides = {}
+    for game_7z in game_7z_filenames:
+        game_name = game_7z.split(".7z")[0]
+
+        try:
+            gameid = os.listdir(f"{TRACKING_DIR}/{game_name}")[0].split(".")[0]
+        except FileNotFoundError:
+            continue
+
+        df_tracking = pd.read_json(f"{TRACKING_DIR}/{game_name}/{gameid}.json")
+        hoop_side_counts = {}
+        used_game_times = set()
+        teams = set()
+        for tracking_event in df_tracking["events"]:
+            for moment in tracking_event["moments"]:
+                period = moment[0]
+                game_clock = moment[2]
+                game_time = int(get_game_time(game_clock, period))
+                if (game_time in shot_times[gameid]) and (
+                    game_time not in used_game_times
+                ):
+                    ball_x = moment[5][0][2]
+
+                    if ball_x < HALF_COURT_LENGTH:
+                        hoop_side = 0
+                    else:
+                        hoop_side = COURT_LENGTH
+
+                    if period not in hoop_side_counts:
+                        hoop_side_counts[period] = {}
+
+                    shooting_team = shot_times[gameid][game_time]
+                    if shooting_team not in hoop_side_counts[period]:
+                        hoop_side_counts[period][shooting_team] = {
+                            0: 0,
+                            COURT_LENGTH: 0,
+                        }
+
+                    hoop_side_counts[period][shooting_team][hoop_side] += 1
+                    used_game_times.add(game_time)
+                    teams.add(shooting_team)
+
+        if len(teams) == 0:
+            print(f"The moments in the {game_name} JSON are empty.", flush=True)
+            continue
+
+        hoop_sides[gameid] = get_game_hoop_sides(teams, hoop_side_counts, game_name)
+    return hoop_sides 
+
+### 
+# Event streams 
+###
 
 def _gameid_from_game7z_basename(game_7z_basename: str) -> Optional[str]:
     """
@@ -316,11 +485,18 @@ def get_event_streams(game_7z_filenames: List[str]) -> Tuple[Dict,Dict]:
     return (event2event_idx, gameid2event_stream)
 
 
-### Save numpy arrays 
-
-from generate_game_numpy_arrays import add_score_changes
-
-def save_game_numpy_arrays(game_name : str, event_stream_for_one_game : List[Dict]) -> None:
+###
+# Save Arrays
+###
+def save_game_numpy_arrays(
+    game_name : str, 
+    event_stream_for_one_game : List[Dict],
+    hoop_sides: Dict,
+    event2event_idx : Dict, 
+    playerid2player_idx: Dict[int,int],
+    first_event_idx: Optional[int]=None,
+    last_event_idx: Optional[int]=None
+) -> None:
     """
     Creates two files, {gameid}_X.npy and {gameid}_y.npy
 
@@ -353,19 +529,40 @@ def save_game_numpy_arrays(game_name : str, event_stream_for_one_game : List[Dic
             51 = wall_clock
     
     Arguments:
+        game_name: E.g. '01.01.2016.CHA.at.TOR.7z'. It's the basename of a folder 
+            in data/NBA-Player-Movements/data/2016.NBA.Raw.SportVU.Game.Logs
+
         event_stream_for_one_game: A List of Dicts. There is one element for each event,
             containining metadata about that event, e.g. the score, and the annotation
             for that event.
-    """
-    try:
-        gameid = _gameid_from_game7z_basename(game_name)
-    except IndexError:
-        shutil.rmtree(f"{TRACKING_DIR}/{game_name}")
-        return
+        
+        hoop_sides: dict, maps gmameid to an inner dict mapping period (1,2,3,4) to where
+            each team's hoop was located on the court (either 0 or 94, apparently).  Example:
 
-    if gameid not in gameid2event_stream:
-        print(f"Missing gameid: {gameid}", flush=True)
-        return
+            In [1]: hoop_sides.keys()
+            Out[1]: dict_keys(['0021500492'])
+
+            In [2]: hoop_sides.values()
+            Out[2]: dict_values([{1: {'CHA': 94, 'TOR': 0}, 2: {'CHA': 94, 'TOR': 0}, 3: {'CHA': 0, 'TOR': 94}, 4: {'CHA': 0, 'TOR': 94}}])
+    
+        event2event_idx: dict, maps event labels to event indices, e.g.
+            {'offensive_foul': 0,
+            'turnover': 1,
+            'shot_made': 2,
+            'defensive_foul': 3,
+            'shot_miss': 4,
+        playerid2player_idx : dict, maps player id to player idx, e.g.
+            {201949: 0,
+            2449: 1,
+            201960: 2,
+            ....
+            1626163: 23,
+            201946: 24,
+            201150: 25}
+    """
+    game_name=game_name.rstrip(".7z")
+
+    gameid = _gameid_from_game7z_basename(game_name)
 
     df_tracking = pd.read_json(f"{TRACKING_DIR}/{game_name}/{gameid}.json")
     home_team = None
@@ -374,7 +571,9 @@ def save_game_numpy_arrays(game_name : str, event_stream_for_one_game : List[Dic
     game_over = False
     X = []
     y = []
-    for tracking_event in df_tracking["events"]:
+    for tracking_event in df_tracking["events"][first_event_idx:last_event_idx]:
+        # TODO: To do per-event training, Limit the training for this to the first however many events.
+        # Then change the name accordingly. 
         event_id = tracking_event["eventId"]
         if home_team is None:
             home_team_id = tracking_event["home"]["teamid"]
@@ -488,11 +687,21 @@ def save_game_numpy_arrays(game_name : str, event_stream_for_one_game : List[Dic
 
     X = add_score_changes(X)
 
-    np.save(f"{GAMES_DIR}/{gameid}_X.npy", X)
-    np.save(f"{GAMES_DIR}/{gameid}_y.npy", y)
+    if (first_event_idx is not None) or (last_event_idx is not None):
+        np.save(f"{GAMES_DIR}/{gameid}_X__for_event_idxs_{first_event_idx}:{last_event_idx}.npy", X)
+        np.save(f"{GAMES_DIR}/{gameid}_y__for_event_idxs_{first_event_idx}:{last_event_idx}.npy", y)
+    else:
+        np.save(f"{GAMES_DIR}/{gameid}_X.npy", X)
+        np.save(f"{GAMES_DIR}/{gameid}_y.npy", y)
 
 
-def save_numpy_arrays(game_7z_filenames: List[str], gameid2event_stream):
+def save_numpy_arrays(
+    game_7z_filenames: List[str], 
+    gameid2event_stream,
+    hoop_sides: Dict,
+    event2event_idx : Dict, 
+    playerid2player_idx: Dict[int,int],
+):
 
     for game_7z in game_7z_filenames:
 
@@ -503,140 +712,9 @@ def save_numpy_arrays(game_7z_filenames: List[str], gameid2event_stream):
         try:
             gameid = _gameid_from_game7z_basename(game_name)
             event_stream_for_one_game = gameid2event_stream[gameid]
-            save_game_numpy_arrays(game_name, event_stream_for_one_game)
+            save_game_numpy_arrays(game_name, event_stream_for_one_game, hoop_sides, event2event_idx, playerid2player_idx)
         except ValueError:
             pass
 
         # TODO: Should this be uncommented, as in the original code by Alcorn? If so, why?
         shutil.rmtree(f"{TRACKING_DIR}/{game_name}")
-
-### Playing Time
-def get_player_idx2playing_time_map() -> Dict[int, float]:
-    """
-    Partial example of return value:
-
-        {0: 1683.7159999992375,
-        4: 1730.3049999992004,
-        5: 1622.953999999284,
-        9: 1574.316999999348,
-    """
-    player_idx2playing_time = {}
-
-    gameids = list(set([np_f.split("_")[0] for np_f in os.listdir(GAMES_DIR)]))
-
-    for gameid in gameids:
-        X = np.load(f"{GAMES_DIR}/{gameid}_X.npy")
-        wall_clock_diffs = np.diff(X[:, -1]) / 1000
-        all_player_idxs = X[:, 10:20].astype(int)
-        prev_players = set(all_player_idxs[0])
-        for (row_idx, player_idxs) in enumerate(all_player_idxs[1:]):
-            current_players = set(player_idxs)
-            if len(prev_players & current_players) == 10:
-                wall_clock_diff = wall_clock_diffs[row_idx]
-                if wall_clock_diff < THRESHOLD:
-                    for player_idx in current_players:
-                        player_idx2playing_time[player_idx] = (
-                            player_idx2playing_time.get(player_idx, 0) + wall_clock_diff
-                        )
-
-            prev_players = current_players
-
-    return player_idx2playing_time
-
-###
-# Main 
-###
-
-### Configs (orig)
-HALF_COURT_LENGTH = COURT_LENGTH // 2
-THRESHOLD = 1.0
-
-### Configs (my added configs for simple version)
-N_GAMES = 3
-
-### Preliminiaries
-os.makedirs(GAMES_DIR, exist_ok=True)
-
-### Run simple version of get_playerid2player_idx_map().
-# "Simple" = sequential not parallel.  Perhaps also fewer games.
-# That parallel script calls playerid2player_idx_map_worker().
-
-# `all_game_7zs` gives a list of filenames, each one giving a game, 
-# e.g.  '01.07.2016.ATL.at.PHI.7z'.  It seems that these are contained in 
-# `NBA-Player-Movements/data/`.  Locally they are contained in 
-# `baller2vec_forked/data//NBA-Player-Movements/data/2016.NBA.Raw.SportVU.Game.Logs' 
-#  There are 636 games.
-dir_fs = os.listdir(TRACKING_DIR)
-all_game_7zs = [dir_f for dir_f in dir_fs if dir_f.endswith(".7z")]
-
-#sample_games_7zs = all_game_7zs[:N_GAMES]
-sample_games_7zs=[x for x in all_game_7zs if "TOR" in x and "CHA" in x]
-#sample_games_7zs=[x for x in all_game_7zs if "TOR" in x]
-
-# TODO: Split this into two functions, one that unzips all the files first, and then 
-# one that gets the player indices
-
-# TODO: Ten of the filenames are off in the source data at 
-# https://github.com/linouk23/NBA-Player-Movements/tree/master/data/2016.NBA.Raw.SportVU.Game.Logs: 
-# e.g.'2016.NBA.Raw.SportVU.Game.Logs12.05.2015.NYK.at.MIL.7z' rather than
-#  '10.31.2015.GSW.at.NOP.7z'.  The former appears to have the higher-level folder
-#  directory accidentally appened to the basename.  Dealing with the dual naming syntax can cause weirdnesses
-# throughout. Should I fix this?  Probably would be best to just find and remove the prefixes up front.
-(playerid2player_idx, player_idx2props) = get_playerid2player_idx_map(sample_games_7zs)
-
-# A `baller2vec_config' simply has two items.  
-#   - player_idx2props, which maps a player index to {name, playerid, and playing time}:   
-#       Note that some players may not have played.  An example:
-#
-#       7: {'name': 'Miles Plumlee', 'playerid': 203101},
-#       8: {'name': 'Rashad Vaughn',
-#           'playerid': 1626173,
-#            'playing_time': 191.67299999999213},
-#
-#   - event2event_idx, which maps event labels to event indices, e.g.
-#       {'offensive_foul': 0,
-#       'turnover': 1,
-#       'shot_made': 2,
-#       'defensive_foul': 3,
-#       'shot_miss': 4,
-
-# MTW: I always rewrite the config because it don't currently see how it would
-# take substantial additional time to do so, and that way the dicts will
-# track changes in number of processed data samples. 
-#
-# try:
-#     baller2vec_config = pickle.load(
-#         open(f"{DATA_DIR}/baller2vec_config.pydict", "rb")
-#     )
-#     player_idx2props = baller2vec_config["player_idx2props"]
-#     event2event_idx = baller2vec_config["event2event_idx"]
-#     playerid2player_idx = {}
-#     for (player_idx, props) in player_idx2props.items():
-#         playerid2player_idx[props["playerid"]] = player_idx
-
-# except FileNotFoundError:
-baller2vec_config = False
-
-shot_times = get_shot_times(sample_games_7zs)
-# TODO: Why is get_team_hoop_sides so much slower than get_shot_times and get_event_streams? Can I speed it up?
-hoop_sides = get_team_hoop_sides(sample_games_7zs, shot_times)
-(event2event_idx, gameid2event_stream) = get_event_streams(sample_games_7zs)
-
-# if baller2vec_config:
-#     event2event_idx = baller2vec_config["event2event_idx"]
-
-save_numpy_arrays(sample_games_7zs, gameid2event_stream)
-
-player_idx2playing_time = get_player_idx2playing_time_map()
-
-for (player_idx, playing_time) in player_idx2playing_time.items():
-    player_idx2props[player_idx]["playing_time"] = playing_time
-
-# if not baller2vec_config:
-baller2vec_config = {
-    "player_idx2props": player_idx2props,
-    "event2event_idx": event2event_idx,
-}
-pickle.dump(
-    baller2vec_config, open(f"{DATA_DIR}/baller2vec_config.pydict", "wb")
-)

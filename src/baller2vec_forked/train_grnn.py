@@ -3,10 +3,12 @@ import time
 import torch
 import yaml
 
-from grnn import GRNN
-from settings import *
+
 from torch import nn, optim
 from train_baller2vec import init_datasets
+
+from baller2vec_forked.grnn import GRNN
+from baller2vec_forked.settings import *
 
 SEED = 2010
 torch.manual_seed(SEED)

@@ -1,7 +1,7 @@
 import os
 
 from animator import Game
-from settings import DATA_DIR, GAMES_DIR
+from baller2vec_forked.settings import DATA_DIR, GAMES_DIR
 
 gameid = "0021500622"
 try:

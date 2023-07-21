@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from settings import COURT_LENGTH, COURT_WIDTH, GAMES_DIR
+from baller2vec_forked.settings import COURT_LENGTH, COURT_WIDTH, GAMES_DIR
 from torch.utils.data import Dataset
 
 

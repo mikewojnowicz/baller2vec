@@ -5,7 +5,7 @@ import numpy as np
 import pickle
 
 from matplotlib import animation
-from settings import *
+from baller2vec_forked.settings import *
 
 
 class Game:

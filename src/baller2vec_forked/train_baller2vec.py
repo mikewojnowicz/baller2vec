@@ -4,13 +4,14 @@ import random
 import sys
 import time
 import torch
-import yaml
-
-from baller2vec import Baller2Vec, Baller2VecSeq2Seq
-from baller2vec_dataset import Baller2VecDataset
-from settings import *
 from torch import nn, optim
 from torch.utils.data import DataLoader
+import yaml
+
+from baller2vec_forked.baller2vec import Baller2Vec, Baller2VecSeq2Seq
+from baller2vec_forked.baller2vec_dataset import Baller2VecDataset
+from baller2vec_forked.settings import *
+
 
 SEED = 2010
 torch.manual_seed(SEED)

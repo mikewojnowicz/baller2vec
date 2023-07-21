@@ -5,7 +5,7 @@ import pickle
 import py7zr
 import shutil
 
-from settings import *
+from baller2vec_forked.settings import *
 
 HALF_COURT_LENGTH = COURT_LENGTH // 2
 THRESHOLD = 1.0
