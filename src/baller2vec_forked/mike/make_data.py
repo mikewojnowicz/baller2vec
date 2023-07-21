@@ -1,3 +1,4 @@
+import glob
 from typing import List, Dict, Optional, Tuple 
 import os 
 import pickle 
@@ -96,7 +97,6 @@ def get_playerid2player_idx_map(game_7z_filenames : List[str]) -> Tuple[Dict, Di
         player_idx2props[player_idx]["playerid"] = playerid
     return  playerid2player_idx, player_idx2props
 
-### Playing Time
 def get_player_idx2playing_time_map(games_dir: str) -> Dict[int, float]:
     """
     Partial example of return value:
@@ -108,10 +108,13 @@ def get_player_idx2playing_time_map(games_dir: str) -> Dict[int, float]:
     """
     player_idx2playing_time = {}
 
-    gameids = list(set([np_f.split("_")[0] for np_f in os.listdir(games_dir)]))
+    file_pattern = "*_X.npy"
 
-    for gameid in gameids:
-        X = np.load(f"{games_dir}/{gameid}_X.npy")
+    # Use glob to get a list of all files matching the pattern
+    matching_files = glob.glob(f"{games_dir}/{file_pattern}")
+
+    for filepath in matching_files:
+        X = np.load(filepath)
         wall_clock_diffs = np.diff(X[:, -1]) / 1000
         all_player_idxs = X[:, 10:20].astype(int)
         prev_players = set(all_player_idxs[0])
@@ -693,8 +696,8 @@ def save_game_numpy_arrays(
     X = add_score_changes(X)
 
     if (first_event_idx is not None) or (last_event_idx is not None):
-        np.save(f"{games_dir}/{gameid}_X__for_event_idxs_{first_event_idx}:{last_event_idx}.npy", X)
-        np.save(f"{games_dir}/{gameid}_y__for_event_idxs_{first_event_idx}:{last_event_idx}.npy", y)
+        np.save(f"{games_dir}/{gameid}_event_idxs_{first_event_idx}_to_{last_event_idx}__X.npy", X)
+        np.save(f"{games_dir}/{gameid}_event_idxs_{first_event_idx}_to_{last_event_idx}__y.npy", y)
     else:
         np.save(f"{games_dir}/{gameid}_X.npy", X)
         np.save(f"{games_dir}/{gameid}_y.npy", y)
@@ -722,8 +725,8 @@ def save_numpy_arrays(
         except ValueError:
             pass
 
-        # TODO: Should this be uncommented, as in the original code by Alcorn? If so, why?
-        shutil.rmtree(f"{TRACKING_DIR}/{game_name}")
+        # # TODO: Should this be uncommented, as in the original code by Alcorn? If so, why?
+        # shutil.rmtree(f"{TRACKING_DIR}/{game_name}")
 
 def save_baller2vec_info(
     player_idx2props: Dict[int, Dict],
