@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 from baller2vec_forked.settings import (
-    TRACKING_DIR, EVENTS_DIR, GAMES_DIR, DATA_DIR, COURT_LENGTH, TEAM_ID2PROPS
+    TRACKING_DIR, EVENTS_DIR, DATA_DIR, COURT_LENGTH, TEAM_ID2PROPS
 )
 
 from baller2vec_forked.generate_game_numpy_arrays import (
@@ -97,7 +97,7 @@ def get_playerid2player_idx_map(game_7z_filenames : List[str]) -> Tuple[Dict, Di
     return  playerid2player_idx, player_idx2props
 
 ### Playing Time
-def get_player_idx2playing_time_map() -> Dict[int, float]:
+def get_player_idx2playing_time_map(games_dir: str) -> Dict[int, float]:
     """
     Partial example of return value:
 
@@ -108,10 +108,10 @@ def get_player_idx2playing_time_map() -> Dict[int, float]:
     """
     player_idx2playing_time = {}
 
-    gameids = list(set([np_f.split("_")[0] for np_f in os.listdir(GAMES_DIR)]))
+    gameids = list(set([np_f.split("_")[0] for np_f in os.listdir(games_dir)]))
 
     for gameid in gameids:
-        X = np.load(f"{GAMES_DIR}/{gameid}_X.npy")
+        X = np.load(f"{games_dir}/{gameid}_X.npy")
         wall_clock_diffs = np.diff(X[:, -1]) / 1000
         all_player_idxs = X[:, 10:20].astype(int)
         prev_players = set(all_player_idxs[0])
@@ -498,6 +498,7 @@ def save_game_numpy_arrays(
     hoop_sides: Dict,
     event2event_idx : Dict, 
     playerid2player_idx: Dict[int,int],
+    games_dir: str, 
     first_event_idx: Optional[int]=None,
     last_event_idx: Optional[int]=None
 ) -> None:
@@ -692,11 +693,11 @@ def save_game_numpy_arrays(
     X = add_score_changes(X)
 
     if (first_event_idx is not None) or (last_event_idx is not None):
-        np.save(f"{GAMES_DIR}/{gameid}_X__for_event_idxs_{first_event_idx}:{last_event_idx}.npy", X)
-        np.save(f"{GAMES_DIR}/{gameid}_y__for_event_idxs_{first_event_idx}:{last_event_idx}.npy", y)
+        np.save(f"{games_dir}/{gameid}_X__for_event_idxs_{first_event_idx}:{last_event_idx}.npy", X)
+        np.save(f"{games_dir}/{gameid}_y__for_event_idxs_{first_event_idx}:{last_event_idx}.npy", y)
     else:
-        np.save(f"{GAMES_DIR}/{gameid}_X.npy", X)
-        np.save(f"{GAMES_DIR}/{gameid}_y.npy", y)
+        np.save(f"{games_dir}/{gameid}_X.npy", X)
+        np.save(f"{games_dir}/{gameid}_y.npy", y)
 
 
 def save_numpy_arrays(
@@ -705,6 +706,7 @@ def save_numpy_arrays(
     hoop_sides: Dict,
     event2event_idx : Dict, 
     playerid2player_idx: Dict[int,int],
+    games_dir: str, 
 ):
 
     for game_7z in game_7z_filenames:
@@ -716,14 +718,18 @@ def save_numpy_arrays(
         try:
             gameid = _gameid_from_game7z_basename(game_name)
             event_stream_for_one_game = gameid2event_stream[gameid]
-            save_game_numpy_arrays(game_name, event_stream_for_one_game, hoop_sides, event2event_idx, playerid2player_idx)
+            save_game_numpy_arrays(game_name, event_stream_for_one_game, hoop_sides, event2event_idx, playerid2player_idx, games_dir)
         except ValueError:
             pass
 
         # TODO: Should this be uncommented, as in the original code by Alcorn? If so, why?
         shutil.rmtree(f"{TRACKING_DIR}/{game_name}")
 
-def save_baller2vec_config(player_idx2props, event2event_idx) -> None:
+def save_baller2vec_config(
+    player_idx2props, 
+    player_idx2playing_time,
+    event2event_idx
+) -> None:
 
     """
     A `baller2vec_config' simply has two items.  
@@ -758,8 +764,6 @@ def save_baller2vec_config(player_idx2props, event2event_idx) -> None:
     except FileNotFoundError:
         baller2vec_config = False
     """
-
-    player_idx2playing_time = get_player_idx2playing_time_map()
 
     for (player_idx, playing_time) in player_idx2playing_time.items():
         player_idx2props[player_idx]["playing_time"] = playing_time

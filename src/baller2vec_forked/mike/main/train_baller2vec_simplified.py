@@ -3,15 +3,16 @@ import pickle
 import random
 import sys
 import time
-import torch
 from typing import Tuple, List, Dict  
 import yaml
 
-from baller2vec import Baller2Vec, Baller2VecSeq2Seq
-from baller2vec_dataset import Baller2VecDataset
-from settings import *
+import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader
+
+from baller2vec_forked.settings import *
+from baller2vec_forked.baller2vec import Baller2Vec, Baller2VecSeq2Seq
+from baller2vec_forked.baller2vec_dataset import Baller2VecDataset
 
 ###
 # Helper functions

@@ -5,6 +5,7 @@ from baller2vec_forked.settings import GAMES_DIR, TRACKING_DIR
 
 from baller2vec_forked.mike.make_data import (
     get_playerid2player_idx_map,
+    get_player_idx2playing_time_map,
     get_shot_times, 
     get_team_hoop_sides,
     get_event_streams, 
@@ -60,6 +61,7 @@ shot_times = get_shot_times(sample_games_7zs)
 # TODO: Why is get_team_hoop_sides so much slower than get_shot_times and get_event_streams? Can I speed it up?
 hoop_sides = get_team_hoop_sides(sample_games_7zs, shot_times)
 (event2event_idx, gameid2event_stream) = get_event_streams(sample_games_7zs)
+save_numpy_arrays(sample_games_7zs, gameid2event_stream,  hoop_sides, event2event_idx, playerid2player_idx, GAMES_DIR) 
 
-save_numpy_arrays(sample_games_7zs, gameid2event_stream,  hoop_sides, event2event_idx, playerid2player_idx) 
-save_baller2vec_config(player_idx2props, event2event_idx)
+player_idx2playing_time = get_player_idx2playing_time_map(GAMES_DIR)
+save_baller2vec_config(player_idx2props, player_idx2playing_time, event2event_idx)
