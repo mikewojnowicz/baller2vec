@@ -1,7 +1,3 @@
-
-
-
-
 import os 
 
 from baller2vec_forked.mike.make_data import (
@@ -42,9 +38,20 @@ hoop_sides = get_team_hoop_sides([game_name], shot_times)
 
 event_stream_for_one_game = gameid2event_stream[gameid]
 
+# train data
 save_game_numpy_arrays(
     game_name, event_stream_for_one_game,  hoop_sides, event2event_idx, playerid2player_idx, SPLITS_DIR, first_event_idx=0,
     last_event_idx=3, 
+) 
+# val data
+save_game_numpy_arrays(
+    game_name, event_stream_for_one_game,  hoop_sides, event2event_idx, playerid2player_idx, SPLITS_DIR, first_event_idx=4,
+    last_event_idx=4, 
+) 
+# test data
+save_game_numpy_arrays(
+    game_name, event_stream_for_one_game,  hoop_sides, event2event_idx, playerid2player_idx, SPLITS_DIR, first_event_idx=5,
+    last_event_idx=5, 
 ) 
 
 player_idx2playing_time = get_player_idx2playing_time_map(SPLITS_DIR)

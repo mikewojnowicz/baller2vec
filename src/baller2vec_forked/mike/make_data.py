@@ -579,7 +579,7 @@ def save_game_numpy_arrays(
     game_over = False
     X = []
     y = []
-    for tracking_event in df_tracking["events"][first_event_idx:last_event_idx]:
+    for tracking_event in df_tracking["events"][first_event_idx:last_event_idx+1]:
         # TODO: To do per-event training, Limit the training for this to the first however many events.
         # Then change the name accordingly. 
         event_id = tracking_event["eventId"]
