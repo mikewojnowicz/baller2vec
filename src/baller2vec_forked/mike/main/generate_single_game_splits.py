@@ -11,7 +11,6 @@ from baller2vec_forked.mike.make_data import (
     _gameid_from_game7z_basename
 )
 
-
 ### 
 # MAIN
 ###

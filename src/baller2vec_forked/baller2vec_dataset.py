@@ -135,6 +135,7 @@ class Baller2VecDataset(Dataset):
         player_traj_rows = np.digitize(player_y_diffs, self.player_traj_bins)
         player_traj_cols = np.digitize(player_x_diffs, self.player_traj_bins)
         player_trajs = player_traj_rows * self.player_traj_n + player_traj_cols
+        # `player_trajs` is (T_slice_for_diffs=20, J=10); `player_traj_n is a scalar`
 
         # Get ball trajectories.
         ball_x_diffs = np.diff(ball_xs)
@@ -216,6 +217,7 @@ class Baller2VecDataset(Dataset):
             start = np.random.randint(len(y) - self.chunk_size)
 
         elif self.mode in {"valid", "test"}:
+            # TODO: Why is Alcorn reusing the same starting indices? Seems kind of weird. 
             start = self.starts[idx]
 
         return self.get_sample(X, y, start)
